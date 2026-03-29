@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant O as Operator
+    participant Dash as React Dashboard
+    participant API as Backend API
+    participant MARL as MARL Engine
+
+    O->>Dash: Login to dashboard
+    Dash->>API: Fetch station status
+    API-->>Dash: Station data
+    Dash-->>O: Display overview
+
+    O->>Dash: Update pricing strategy
+    Dash->>API: Submit new rates
+    API->>MARL: Optimize pricing
+    MARL-->>API: Suggested multipliers
+    API-->>Dash: Updated pricing
+    Dash-->>O: Confirm changes

@@ -1,0 +1,7 @@
+gymnasium>=0.29.1
+pettingzoo>=1.24.3
+ray[rllib]>=2.9.1
+stable-baselines3>=2.2.1
+numpy>=1.26.0
+matplotlib>=3.8.2
+pandas>=2.1.4

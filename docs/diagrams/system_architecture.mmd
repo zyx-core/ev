@@ -1,0 +1,68 @@
+graph TB
+    subgraph Users["👥 Users"]
+        EVD["🚗 EV Driver"]
+        CPO["🏢 Charging Point Operator"]
+        GA["⚡ Grid Aggregator"]
+    end
+
+    subgraph Frontend["📱 Frontend Layer"]
+        FLUTTER["Flutter Mobile App"]
+        REACT["React Dashboard"]
+    end
+
+    subgraph Backend["🖥️ Backend Services"]
+        API["FastAPI Server"]
+        MCDM["MCDM Recommendation Engine"]
+        DB[(SQLite Database)]
+    end
+
+    subgraph AI["🧠 AI/ML Layer"]
+        FL["Federated Learning Server"]
+        LSTM["Battery Prediction Model"]
+        MARL["Multi-Agent RL Engine"]
+    end
+
+    subgraph Blockchain["🔗 Blockchain Layer"]
+        SC["Smart Contracts"]
+        BILLING["Billing & Payments"]
+        RESERVE["Reservation Management"]
+    end
+
+    subgraph External["🌐 External Systems"]
+        CS["Charging Stations"]
+        GRID["Power Grid"]
+    end
+
+    EVD -->|"Find charging stations"| FLUTTER
+    EVD -->|"View recommendations"| FLUTTER
+    EVD -->|"Make reservations"| FLUTTER
+    EVD -->|"Pay for charging"| FLUTTER
+
+    CPO -->|"Monitor stations"| REACT
+    CPO -->|"Set pricing"| REACT
+    CPO -->|"View analytics"| REACT
+
+    GA -->|"Predict demand"| REACT
+    GA -->|"Manage load"| REACT
+
+    FLUTTER -->|"REST API"| API
+    REACT -->|"REST API"| API
+
+    API --> MCDM
+    API --> DB
+    MCDM -->|"Station ranking"| API
+
+    API -->|"Battery SoC data"| FL
+    FL --> LSTM
+    LSTM -->|"Predictions"| API
+    MARL -->|"Dynamic pricing"| API
+    MARL -->|"Load balancing"| API
+
+    API -->|"Transactions"| SC
+    SC --> BILLING
+    SC --> RESERVE
+    BILLING -->|"Payment confirmation"| API
+    RESERVE -->|"Slot booking"| API
+
+    API <-->|"OCPP 2.0.1"| CS
+    MARL <-->|"Grid signals"| GRID

@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IEVC-eco | IoT Control Gateway</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --accent-primary: #3b82f6;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .header {
+            padding: 24px 40px;
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .container {
+            flex: 1;
+            padding: 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 32px;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .station-item {
+            padding: 16px;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .station-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .connector-control {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .btn-status {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1.5px solid transparent;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .btn-status:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .btn-status.active-available {
+            border-color: var(--accent-success);
+            color: var(--accent-success);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .btn-status.active-occupied {
+            border-color: var(--accent-warning);
+            color: var(--accent-warning);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .btn-status.active-faulted {
+            border-color: var(--accent-danger);
+            color: var(--accent-danger);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .slider-group {
+            margin-top: 24px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #334155;
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            margin: 12px 0;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--accent-primary);
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        .badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+            font-weight: 700;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 24px;
+            background: var(--accent-success);
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.3s ease-out;
+            z-index: 100;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .grid-status {
+            padding: 24px;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 20px;
+            margin-top: 32px;
+        }
+
+        .connector-id {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const API_BASE = "http://localhost:8000/api/v1";
+
+        function App() {
+            const [stations, setStations] = useState([]);
+            const [gridLoad, setGridLoad] = useState(0.5);
+            const [loading, setLoading] = useState(true);
+            const [toast, setToast] = useState(null);
+
+            const showToast = (msg) => {
+                setToast(msg);
+                setTimeout(() => setToast(null), 3000);
+            };
+
+            const fetchData = async () => {
+                try {
+                    const sRes = await fetch(`${API_BASE}/stations/`);
+                    const sData = await sRes.json();
+                    setStations(sData);
+
+                    const gRes = await fetch(`${API_BASE}/iot/grid/load`);
+                    if (gRes.ok) {
+                        const gData = await gRes.json();
+                        setGridLoad(gData.load_factor);
+                    }
+                    setLoading(false);
+                } catch (err) {
+                    console.error("API error", err);
+                }
+            };
+
+            useEffect(() => {
+                fetchData();
+            }, []);
+
+            const updateConnector = async (cid, status) => {
+                try {
+                    const res = await fetch(`${API_BASE}/iot/connector/status`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ connector_id: cid, status })
+                    });
+                    if (res.ok) {
+                        showToast(`Connector ${cid.slice(0, 5)} set to ${status}`);
+                        fetchData();
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+            };
+
+            const updateGridLoad = async (val) => {
+                setGridLoad(val);
+                try {
+                    await fetch(`${API_BASE}/iot/grid/load`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ load_factor: parseFloat(val) })
+                    });
+                } catch (err) {
+                    console.error(err);
+                }
+            };
+
+            return (
+                <div>
+                    <header className="header">
+                        <div className="logo">
+                            <div className="logo-icon">📡</div>
+                            <span>IEVC-eco | Virtual IoT Gateway</span>
+                        </div>
+                        <div className="badge">LIVE SIMULATOR</div>
+                    </header>
+
+                    <main className="container">
+                        <div className="grid">
+                            {/* Grid Sensor Control */}
+                            <div className="card">
+                                <div className="card-title">🔌 Smart Grid Load Sensor</div>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+                                    Simulate real-time grid demand. Adjusting this will trigger MARL dynamic pricing across all stations.
+                                </p>
+                                <div className="slider-group">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ fontWeight: '600' }}>Current Load Factor</span>
+                                        <span style={{ color: gridLoad > 0.8 ? 'var(--accent-danger)' : 'var(--accent-success)', fontWeight: '700' }}>
+                                            {(gridLoad * 100).toFixed(0)}%
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="range" min="0" max="1" step="0.01"
+                                        value={gridLoad}
+                                        onChange={(e) => updateGridLoad(e.target.value)}
+                                    />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}>
+                                        <span>LOW (Green Energy)</span>
+                                        <span>CRITICAL (Peak Time)</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Station Hardware Simulators */}
+                            <div className="card" style={{ gridRow: 'span 2' }}>
+                                <div className="card-title">🏦 Station Hardware Simulation</div>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '20px' }}>
+                                    Simulate hardware status changes (sensors, RFID tags, power modules).
+                                </p>
+
+                                <div style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '8px' }}>
+                                    {stations.map(station => (
+                                        <div key={station.id} className="station-item">
+                                            <div className="station-header">
+                                                <span style={{ fontWeight: '700', fontSize: '14px' }}>{station.name}</span>
+                                                <span className="badge">Rs.{station.pricing.effective_rate}/kWh</span>
+                                            </div>
+                                            <div className="connector-control">
+                                                {station.connectors.map(c => (
+                                                    <div key={c.id} style={{ width: '100%', marginBottom: '10px' }}>
+                                                        <span className="connector-id">Node: {c.id.slice(0, 8)} ({c.connector_type})</span>
+                                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                                            <button
+                                                                className={`btn-status ${c.status === 'available' ? 'active-available' : ''}`}
+                                                                onClick={() => updateConnector(c.id, 'available')}
+                                                            >Available</button>
+                                                            <button
+                                                                className={`btn-status ${c.status === 'occupied' ? 'active-occupied' : ''}`}
+                                                                onClick={() => updateConnector(c.id, 'occupied')}
+                                                            >Occupied</button>
+                                                            <button
+                                                                className={`btn-status ${c.status === 'faulted' ? 'active-faulted' : ''}`}
+                                                                onClick={() => updateConnector(c.id, 'faulted')}
+                                                            >Faulted</button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Documentation Card */}
+                            <div className="card" style={{ background: 'rgba(59, 130, 246, 0.05)', borderColor: 'rgba(59, 130, 246, 0.2)' }}>
+                                <div className="card-title" style={{ color: 'var(--accent-primary)' }}>💡 Judging Demo Guide</div>
+                                <ul style={{ listStyle: 'none', fontSize: '13px', lineHeight: '1.8' }}>
+                                    <li>1. Open the <strong>Main CPO Dashboard</strong> in another window.</li>
+                                    <li>2. Use the <strong>Grid Slider</strong> here to set load to 90%.</li>
+                                    <li>3. Watch the Prices and Multipliers update live on the main dashboard via the MARL engine.</li>
+                                    <li>4. Toggle a station to <strong>Faulted</strong> to show real-time maintenance alerts.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </main>
+
+                    {toast && <div className="toast">✓ {toast}</div>}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

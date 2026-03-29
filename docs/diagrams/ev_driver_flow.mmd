@@ -1,0 +1,27 @@
+sequenceDiagram
+    participant D as EV Driver
+    participant App as Mobile App
+    participant API as Backend API
+    participant ML as ML Engine
+    participant BC as Blockchain
+
+    D->>App: Open app & share location
+    App->>API: Request recommendations
+    API->>ML: Get battery predictions
+    ML-->>API: Return SoC forecast
+    API-->>App: Ranked station list
+    App-->>D: Display options
+
+    D->>App: Select station & time slot
+    App->>API: Create reservation
+    API->>BC: Record on blockchain
+    BC-->>API: Transaction hash
+    API-->>App: Confirmation
+    App-->>D: Booking confirmed
+
+    D->>App: Complete charging session
+    App->>API: End session
+    API->>BC: Process payment
+    BC-->>API: Payment verified
+    API-->>App: Receipt
+    App-->>D: Session complete

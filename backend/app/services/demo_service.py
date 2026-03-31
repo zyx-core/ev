@@ -1,15 +1,10 @@
 import httpx
 import random
+import asyncio
 import time
-from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Any, Generator
-import io
-import sys
+from typing import List, Dict, Any
 
-# We need to target the running backend service
-# Since this service runs INSIDE the backend, we should use internal calls where possible,
-# but to keep the logic identical to the demo script (which acts as a client), we'll keep using httpx
-# pointing to localhost.
+# Target the running backend service.
 BASE_URL = "http://127.0.0.1:8000/api/v1"
 
 class DemoLogger:
@@ -22,18 +17,18 @@ class DemoLogger:
     def get_logs(self) -> List[str]:
         return self.logs
 
-def demo_1_show_stations(logger: DemoLogger):
+async def demo_1_show_stations(logger: DemoLogger, client: httpx.AsyncClient):
     """Show all available stations with pricing"""
     logger.log("="*60)
     logger.log("[DEMO 1] Station Discovery")
     logger.log("="*60)
     
     try:
-        r = httpx.get(f"{BASE_URL}/stations/")
+        r = await client.get(f"{BASE_URL}/stations/")
         stations = r.json()
         
         logger.log(f"\n[OK] Found {len(stations)} charging stations:\n")
-        for s in stations[:5]:  # Show first 5
+        for s in stations[:5]:
             rate = s['pricing']['effective_rate']
             available = sum(1 for c in s['connectors'] if c['status'] == 'available')
             total = len(s['connectors'])
@@ -43,16 +38,14 @@ def demo_1_show_stations(logger: DemoLogger):
     except Exception as e:
         logger.log(f"[ERROR] {str(e)}")
 
-
-def demo_2_dynamic_pricing(logger: DemoLogger):
+async def demo_2_dynamic_pricing(logger: DemoLogger, client: httpx.AsyncClient):
     """Show dynamic pricing calculation"""
     logger.log("="*60)
     logger.log("[DEMO 2] Dynamic Pricing Engine")
     logger.log("="*60)
     
     try:
-        # Get current strategy
-        r = httpx.get(f"{BASE_URL}/pricing/strategy/current")
+        r = await client.get(f"{BASE_URL}/pricing/strategy/current")
         strategy = r.json()
         logger.log(f"\n[INFO] Current Pricing Strategy:")
         logger.log(f"   Strategy: {strategy.get('pricing_strategy', 'balanced')}")
@@ -60,7 +53,6 @@ def demo_2_dynamic_pricing(logger: DemoLogger):
         logger.log(f"   Is Peak: {strategy.get('is_peak', False)}")
         logger.log(f"   Grid Status: {strategy.get('grid_status', 'normal')}")
         
-        # Calculate dynamic price for different scenarios
         logger.log("\n[CALC] Dynamic Pricing for Different Conditions:\n")
         
         scenarios = [
@@ -70,7 +62,7 @@ def demo_2_dynamic_pricing(logger: DemoLogger):
         ]
         
         for scenario in scenarios:
-            r = httpx.post(f"{BASE_URL}/pricing/dynamic", json={
+            r = await client.post(f"{BASE_URL}/pricing/dynamic", json={
                 "current_occupancy": scenario["occupancy"],
                 "grid_load": scenario["grid_load"],
                 "hour_of_day": scenario["hour"],
@@ -80,10 +72,8 @@ def demo_2_dynamic_pricing(logger: DemoLogger):
             logger.log(f"  [+] {scenario['label']}:")
             logger.log(f"      Occupancy: {scenario['occupancy']*100:.0f}% | Grid: {scenario['grid_load']*100:.0f}%")
             
-            # Parse stations list
             stations = result.get('stations', [])
             if stations:
-                # Show top 2 stations
                 for s_data in stations[:2]:
                     logger.log(f"      - {s_data.get('station_name')}:")
                     logger.log(f"        Base: Rs.{s_data.get('base_rate', 0):.2f} -> Dynamic: Rs.{s_data.get('effective_rate', 0):.2f}/kWh")
@@ -95,26 +85,29 @@ def demo_2_dynamic_pricing(logger: DemoLogger):
     except Exception as e:
         logger.log(f"[ERROR] {str(e)}")
 
-
-def demo_3_simulate_load(logger: DemoLogger):
+async def demo_3_simulate_load(logger: DemoLogger, client: httpx.AsyncClient):
     """Simulate multiple EVs requesting charging"""
     logger.log("="*60)
     logger.log("[DEMO 3] Load Simulation (Multiple EVs)")
     logger.log("="*60)
     
     num_evs = 20
-    logger.log(f"\n[LOAD] Simulating {num_evs} EVs requesting recommendations...")
+    logger.log(f"\n[LOAD] Simulating {num_evs} concurrent EV driver requests...")
     
     start_time = time.time()
+    success_count = 0
     
-    def simulate_ev(ev_id):
+    # We process in batches to avoid overwhelming the single-worker backend
+    # and to provide "live" progress updates if the frontend could stream them.
+    # Since we return all logs at once, we'll still gather but with a smaller limit.
+    
+    async def simulate_ev(i):
         try:
-            # Random location around Bangalore
             lat = 12.9716 + random.uniform(-0.05, 0.05)
             lon = 77.5946 + random.uniform(-0.05, 0.05)
             soc = random.uniform(10, 50)
             
-            r = httpx.post(f"{BASE_URL}/stations/recommend", json={
+            r = await client.post(f"{BASE_URL}/stations/recommend", json={
                 "user_location": {"latitude": lat, "longitude": lon},
                 "battery_soc": soc,
                 "max_distance_km": 20,
@@ -124,122 +117,115 @@ def demo_3_simulate_load(logger: DemoLogger):
                     "speed_weight": 0.2,
                     "availability_weight": 0.1
                 }
-            }, timeout=10)
-            return r.status_code == 200
-        except:
+            }, timeout=15)
+            
+            if r.status_code == 200:
+                return True
             return False
-    
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        results = list(executor.map(simulate_ev, range(num_evs)))
+        except Exception:
+            return False
+
+    # Execute in small chunks to show progress capability and maintain server stability
+    chunk_size = 5
+    all_results = []
+    for i in range(0, num_evs, chunk_size):
+        logger.log(f"   - Processing batch {i//chunk_size + 1}/{num_evs//chunk_size}...")
+        batch_tasks = [simulate_ev(j) for j in range(i, min(i + chunk_size, num_evs))]
+        batch_results = await asyncio.gather(*batch_tasks)
+        all_results.extend(batch_results)
+        # Small artificial delay to allow log observation if streaming were enabled
+        await asyncio.sleep(0.1)
     
     elapsed = time.time() - start_time
-    success = sum(results)
+    success = sum(all_results)
     
-    logger.log(f"\n[OK] Results:")
-    logger.log(f"   Requests: {num_evs}")
-    logger.log(f"   Success Rate: {success}/{num_evs} ({success/num_evs*100:.0f}%)")
-    logger.log(f"   Total Time: {elapsed:.2f}s")
-    logger.log(f"   Avg Response: {elapsed/num_evs*1000:.0f}ms per request")
+    logger.log(f"\n[OK] Aggregated Results:")
+    logger.log(f"   Total Requests: {num_evs}")
+    logger.log(f"   Success Rate:   {success}/{num_evs} ({success/num_evs*100:.0f}%)")
+    logger.log(f"   Total Time:     {elapsed:.2f}s")
+    logger.log(f"   Response Avg:   {elapsed/num_evs*1000:.0f}ms")
+    logger.log(f"\nNote: In a single-threaded dev environment, 20 concurrent")
+    logger.log(f"MCDM requests are processed sequentially by the threadpool.")
 
-
-def demo_4_reservation_flow(logger: DemoLogger):
+async def demo_4_reservation_flow(logger: DemoLogger, client: httpx.AsyncClient):
     """Demo complete reservation and charging flow"""
     logger.log("="*60)
     logger.log("[DEMO 4] Complete Charging Flow")
     logger.log("="*60)
     
     try:
-        # Get a station
-        r = httpx.get(f"{BASE_URL}/stations/")
+        r = await client.get(f"{BASE_URL}/stations/")
         stations = r.json()
         if not stations:
             logger.log("[ERROR] No stations found")
             return
 
         station = stations[0]
-        
         logger.log(f"\n[1] Selected Station: {station['name']}")
-        logger.log(f"    Rate: Rs.{station['pricing']['effective_rate']:.2f}/kWh")
         
-        # Create reservation
         logger.log("\n[2] Creating Reservation...")
-        r = httpx.post(f"{BASE_URL}/reservations/", json={
+        r = await client.post(f"{BASE_URL}/reservations/", json={
             "station_id": station['id'],
             "user_email": "demo@ievc-eco.in"
         })
         
         if r.status_code == 200:
-            reservation = r.json()
-            logger.log(f"    [OK] Reservation ID: {reservation['id'][:8]}...")
-            logger.log(f"    Escrow: Rs.{reservation['escrow_amount']:.2f}")
+            res = r.json()
+            logger.log(f"    [OK] Reservation ID: {res['id'][:8]}...")
+            logger.log(f"    Escrow Locked: Rs.{res['escrow_amount']:.2f}")
             
-            # Start charging
             logger.log("\n[3] Starting Charging Session...")
-            r = httpx.post(f"{BASE_URL}/sessions/start", json={
-                "reservation_id": reservation['id']
-            })
+            r = await client.post(f"{BASE_URL}/sessions/start", json={"reservation_id": res['id']})
             
             if r.status_code == 200:
                 session = r.json()
-                logger.log(f"    [OK] Session Started: {session['id'][:8]}...")
+                logger.log(f"    [OK] Session Active: {session['id'][:8]}...")
+                logger.log("    [CHARGING] Transferring energy...")
+                await asyncio.sleep(1.5)
                 
-                # Simulate charging time
-                logger.log("\n    [CHARGING] Simulating 2 seconds...")
-                time.sleep(2)
-                
-                # End session
                 logger.log("\n[4] Ending Charging Session...")
-                energy = random.uniform(20, 40)
-                r = httpx.post(f"{BASE_URL}/sessions/{session['id']}/end", json={
+                energy = random.uniform(20, 35)
+                r = await client.post(f"{BASE_URL}/sessions/{session['id']}/end", json={
                     "energy_delivered_kwh": energy
                 })
                 
                 if r.status_code == 200:
-                    result = r.json()
+                    fin = r.json()
                     logger.log(f"    [OK] Session Complete!")
-                    logger.log(f"    Energy: {result['energy_delivered_kwh']:.2f} kWh")
-                    logger.log(f"    Cost: Rs.{result['cost']:.2f}")
+                    logger.log(f"    Energy: {fin['energy_delivered_kwh']:.2f} kWh")
+                    logger.log(f"    Total Cost: Rs.{fin['cost']:.2f}")
                 else:
-                    logger.log(f"    [ERROR] End Error: {r.text}")
+                    logger.log(f"    [ERROR] End Session Failed")
             else:
-                logger.log(f"    [ERROR] Start Error: {r.text}")
+                logger.log(f"    [ERROR] Start Session Failed")
         else:
-            logger.log(f"    [ERROR] Reservation Error: {r.text}")
+            logger.log(f"    [ERROR] Reservation Failed")
     except Exception as e:
         logger.log(f"[ERROR] {str(e)}")
 
-
-def demo_5_grid_dashboard(logger: DemoLogger):
+async def demo_5_grid_dashboard(logger: DemoLogger, client: httpx.AsyncClient):
     """Show grid monitoring data"""
     logger.log("="*60)
     logger.log("[DEMO 5] Grid Monitoring Dashboard")
     logger.log("="*60)
     
     try:
-        r = httpx.get(f"{BASE_URL}/dashboard/grid/load")
+        r = await client.get(f"{BASE_URL}/dashboard/grid/load")
         grid = r.json()
-        
-        logger.log(f"\n[GRID] Status:")
-        logger.log(f"   Current Load: {grid.get('current_load', 0)*100:.1f}%")
+        logger.log(f"\n[GRID] Current Stress: {grid.get('current_load', 0)*100:.1f}%")
         logger.log(f"   Status: {grid.get('status', 'normal').upper()}")
-        logger.log(f"   Recommendation: {grid.get('recommendation', '')}")
         
-        r = httpx.get(f"{BASE_URL}/dashboard/overview")
-        overview = r.json()
-        
-        logger.log(f"\n[STATS] Platform Overview:")
-        logger.log(f"   Stations: {overview.get('stations', {}).get('total', 0)} total ({overview.get('stations', {}).get('active', 0)} active)")
-        logger.log(f"   Connectors: {overview.get('connectors', {}).get('available', 0)} available / {overview.get('connectors', {}).get('total', 0)} total")
-        logger.log(f"   Utilization: {overview.get('connectors', {}).get('utilization', 0)}%")
-        logger.log(f"   24h Revenue: Rs.{overview.get('revenue_24h', 0):.2f}")
-        logger.log(f"   24h Energy: {overview.get('energy_24h_kwh', 0):.2f} kWh")
+        r = await client.get(f"{BASE_URL}/dashboard/overview")
+        ov = r.json()
+        logger.log(f"\n[STATS] System Metrics:")
+        logger.log(f"   Active Stations: {ov['stations']['active']}")
+        logger.log(f"   Total Energy (24h): {ov['energy_24h_kwh']:.1f} kWh")
+        logger.log(f"   Platform Revenue: Rs.{ov['revenue_24h']:.2f}")
     except Exception as e:
         logger.log(f"[ERROR] {str(e)}")
 
-
 async def run_demo_scenario(demo_id: str) -> List[str]:
     logger = DemoLogger()
-    
     demos = {
         "1": demo_1_show_stations,
         "2": demo_2_dynamic_pricing,
@@ -249,9 +235,8 @@ async def run_demo_scenario(demo_id: str) -> List[str]:
     }
     
     if demo_id in demos:
-        # Run synchronous demo function
-        demos[demo_id](logger)
+        async with httpx.AsyncClient() as client:
+            await demos[demo_id](logger, client)
     else:
         logger.log(f"[ERROR] Unknown demo ID: {demo_id}")
-    
     return logger.get_logs()

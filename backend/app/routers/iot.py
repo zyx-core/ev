@@ -62,9 +62,11 @@ async def update_grid_load(update: GridUpdate, db: Session = Depends(get_db)):
     hour = now.hour
     day = now.weekday()
     
+    import random
+    
     for station in stations:
         # Get simulated occupancy (random variance for demo)
-        occupancy = 0.5  # Default
+        occupancy = random.uniform(0.1, 0.9)
         
         # Calculate new multiplier based on new grid load
         multiplier, _ = engine.calculate_multiplier(

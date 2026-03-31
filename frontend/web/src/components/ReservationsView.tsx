@@ -18,7 +18,7 @@ export default function ReservationsView() {
 
     const fetchData = useCallback(async () => {
         try {
-            setLoading(true);
+            if (sessions.length === 0) setLoading(true);
             const data = await dashboardApi.getRecentSessions(20);
             setSessions(data);
         } catch (err) {
@@ -30,6 +30,8 @@ export default function ReservationsView() {
 
     useEffect(() => {
         fetchData();
+        const interval = setInterval(fetchData, 3000); // 3 seconds refresh
+        return () => clearInterval(interval);
     }, [fetchData]);
 
     // Load stations when modal opens
@@ -97,23 +99,31 @@ export default function ReservationsView() {
                                     <td style={{ fontFamily: 'monospace', color: 'var(--text-muted)' }}>
                                         {s.id.substring(0, 8)}...
                                     </td>
-                                    <td>{s.station_id}</td>
+                                    <td>
+                                        <div style={{ fontWeight: 600 }}>{s.station_name}</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.station_id}</div>
+                                    </td>
                                     <td>
                                         <span className={`status-badge ${s.status === 'completed' ? 'available' :
                                             s.status === 'active' ? 'occupied' :
                                                 s.status === 'reserved' ? 'reserved' : 'faulted'
-                                            }`}>
+                                            }`} style={{ fontWeight: 700, letterSpacing: '0.02em', padding: '6px 12px' }}>
                                             {s.status.toUpperCase()}
                                         </span>
                                     </td>
-                                    <td>
-                                        <div>{new Date(s.created_at).toLocaleDateString()}</div>
+                                    <td style={{ minWidth: '120px' }}>
+                                        <div style={{ fontWeight: 500 }}>{new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                            {new Date(s.created_at).toLocaleTimeString()}
+                                            {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                         </div>
                                     </td>
-                                    <td>{s.energy_kwh} kWh</td>
-                                    <td>₹{s.cost?.toFixed(2)}</td>
+                                    <td>
+                                        <span style={{ fontWeight: 600 }}>{s.energy_kwh}</span>
+                                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '4px' }}>kWh</span>
+                                    </td>
+                                    <td>
+                                        <span style={{ fontWeight: 700, color: 'var(--accent-secondary)' }}>₹{s.cost?.toFixed(2)}</span>
+                                    </td>
                                 </tr>
                             ))
                         )}

@@ -91,7 +91,31 @@ async def create_reservation(
     db.refresh(session)
     
     # Calculate escrow amount (estimate based on 30 min charging)
-    escrow_amount = station.base_rate * station.dynamic_multiplier * connector.power_kw * 0.5
+    # Convert to Wei (assuming 1 ETH = 1e18, but for demo just use large integers)
+    multiplier = station.dynamic_multiplier or 1.0
+    escrow_amount = float(station.base_rate * multiplier * connector.power_kw * 0.5)
+    escrow_wei = int(escrow_amount * 10**15) # Scaled for demo
+    
+    # 3. Blockchain Interaction (Escrow)
+    blockchain = get_blockchain_service()
+    tx_hash = None
+    
+    try:
+        # Use a demo operator address (e.g. Account #1 from Hardhat)
+        demo_operator = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+        
+        tx_hash = blockchain.start_blockchain_session(
+            session_id=str(session.id),
+            station_id=str(station.id),
+            operator_address=demo_operator,
+            rate_per_kwh_wei=int(station.base_rate * multiplier * 10**15),
+            escrow_amount_wei=escrow_wei
+        )
+        session.blockchain_tx_hash = tx_hash
+        db.commit()
+    except Exception as e:
+        print(f"[!] Blockchain integration warning: {e}")
+        # We don't fail the request here so the demo can proceed even if node is flaky
     
     return ReservationResponse(
         id=session.id,
@@ -101,7 +125,7 @@ async def create_reservation(
         status=SessionStatusEnum(session.status.value),
         scheduled_start=session.start_time,
         created_at=session.created_at,
-        blockchain_tx_hash=session.blockchain_tx_hash,
+        blockchain_tx_hash=tx_hash,
         escrow_amount=round(escrow_amount, 2)
     )
 

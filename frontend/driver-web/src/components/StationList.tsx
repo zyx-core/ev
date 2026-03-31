@@ -18,7 +18,7 @@ export default function StationList({ onSelect }: Props) {
 
   const loadStations = async () => {
     try {
-      setLoading(true);
+      if (stations.length === 0) setLoading(true);
       const data = await api.getStations({
         lat: 12.9716, // Default Bangalore
         lon: 77.5946,
@@ -36,6 +36,16 @@ export default function StationList({ onSelect }: Props) {
 
   useEffect(() => {
     loadStations();
+    
+    // Continuous live stream
+    const source = new EventSource('http://localhost:8000/api/v1/dashboard/stream');
+    
+    source.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setStations(data);
+    };
+
+    return () => source.close();
   }, [typeFilter, radius]);
 
   const availableConnectors = stations.reduce((acc, s) => acc + s.connectors.filter(c => c.status === 'available').length, 0);

@@ -27,9 +27,12 @@ def run_simulation_task(sim_id: str, config: SimulationConfig):
         # backend/app/routers/simulation.py -> backend/app/routers -> backend/app -> backend -> root
         base_dir = Path(__file__).resolve().parent.parent.parent.parent
         script_path = base_dir / "simulation" / "stress_test.py"
-        results_path = f"sim_results_{sim_id}.json"
         
-        # Build command
+        # The simulation directory must be the cwd so that relative imports
+        # like 'from env.charging_env import ...' resolve correctly.
+        simulation_dir = base_dir / "simulation"
+        results_path = str(base_dir / f"sim_results_{sim_id}.json")
+
         cmd = [
             sys.executable,
             str(script_path),
@@ -40,8 +43,8 @@ def run_simulation_task(sim_id: str, config: SimulationConfig):
             "--save-results", results_path
         ]
         
-        # Run command
-        process = subprocess.run(cmd, capture_output=True, text=True, cwd=str(base_dir))
+        # Run command with simulation/ as cwd so relative imports resolve
+        process = subprocess.run(cmd, capture_output=True, text=True, cwd=str(simulation_dir))
         
         if process.returncode == 0 and os.path.exists(results_path):
              # ... rest of function

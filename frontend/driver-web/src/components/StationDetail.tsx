@@ -7,6 +7,24 @@ export default function StationDetail({ station }: { station: ChargingStation })
   const [v2gEnabled, setV2gEnabled] = useState(false);
   const [soc, setSoc] = useState(82);
   const [loading, setLoading] = useState(false);
+  const [reserved, setReserved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleReserve = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await api.createReservation({
+        station_id: station.id,
+        connector_type: station.connectors[0]?.connector_type
+      });
+      setReserved(true);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleV2gToggle = async () => {
     try {
@@ -65,10 +83,23 @@ export default function StationDetail({ station }: { station: ChargingStation })
               </div>
             )}
           </div>
-          <button className="btn-primary" style={{ width: 'auto', padding: '12px 20px' }}>
-            <CreditCard size={18} /> Reserve
-          </button>
+          {reserved ? (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: 'var(--accent-success)', fontWeight: 700, fontSize: '1rem' }}>✓ Reserved</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Escrow Locked</div>
+            </div>
+          ) : (
+            <button 
+              className="btn-primary" 
+              style={{ width: 'auto', padding: '12px 20px' }}
+              onClick={handleReserve}
+              disabled={loading}
+            >
+              <CreditCard size={18} /> {loading ? 'Wait...' : 'Reserve'}
+            </button>
+          )}
         </div>
+        {error && <div style={{ color: 'var(--accent-danger)', fontSize: '0.8rem', marginTop: '8px' }}>⚠ {error}</div>}
 
         {/* V2G Panel */}
         <div className="card animate-slide-up delay-1" style={{ 

@@ -1,4 +1,4 @@
-export const API_BASE = 'http://127.0.0.1:8000/api/v1';
+export const API_BASE = 'http://localhost:8000/api/v1';
 
 export interface Location {
   latitude: number;
@@ -77,6 +77,23 @@ export const api = {
       method: 'POST',
     });
     if (!res.ok) throw new Error('Failed to enable V2G');
+    return res.json();
+  },
+
+  async createReservation(params: { station_id: string; connector_type?: string }): Promise<any> {
+    const res = await fetch(`${API_BASE}/reservations/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...params,
+        user_email: 'driver@ievc.eco',
+        user_name: 'Eco Driver'
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Reservation failed');
+    }
     return res.json();
   }
 };

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Map, Zap, Settings, Search, BatteryCharging, ChevronLeft } from 'lucide-react';
+import { Zap, ChevronLeft } from 'lucide-react';
 import StationList from './components/StationList';
 import Recommendations from './components/Recommendations';
 import StationDetail from './components/StationDetail';
@@ -22,7 +22,7 @@ function App() {
       {/* Header */}
       <header className="header">
         <div className="header-title">
-          {view === 'detail' && (
+          {(view === 'detail' || view === 'recommendations') && (
             <button 
               className="icon-btn" 
               onClick={() => setView('list')}
@@ -42,9 +42,6 @@ function App() {
               <Zap size={20} color="var(--accent-primary)" />
             </button>
           )}
-          <button className="icon-btn">
-            <Settings size={20} />
-          </button>
         </div>
       </header>
 

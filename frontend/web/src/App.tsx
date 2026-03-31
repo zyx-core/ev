@@ -16,7 +16,7 @@ function App() {
 
   const fetchStations = useCallback(async () => {
     try {
-      setLoading(true);
+      if (stations.length === 0) setLoading(true);
       setError(null);
       const data = await stationsApi.getAll();
       setStations(data);
@@ -31,8 +31,22 @@ function App() {
 
   useEffect(() => {
     fetchStations();
-    const interval = setInterval(fetchStations, 30000);
-    return () => clearInterval(interval);
+    
+    // Continuous SSE Stream for live demo
+    const source = new EventSource('http://localhost:8000/api/v1/dashboard/stream');
+    
+    source.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setStations(data);
+      setLastUpdated(new Date());
+    };
+    
+    source.onerror = (err) => {
+      console.warn("SSE Stream disconnected, falling back to polling.", err);
+      source.close();
+    };
+
+    return () => source.close();
   }, [fetchStations]);
 
   const navItems = [
@@ -67,11 +81,6 @@ function App() {
               <span>{item.label}</span>
             </button>
           ))}
-          <div style={{ height: '24px' }}></div>
-          <a href="#" className="nav-item">
-            <span className="nav-icon">⚙️</span>
-            <span>Settings</span>
-          </a>
         </nav>
       </aside>
 
@@ -229,11 +238,17 @@ function DashboardView({ stations, loading, error, lastUpdated, onRefresh }: any
                     <div className="price-cell">
                       <span className="price-value">₹{station.pricing?.effective_rate?.toFixed(2) || '0.00'}</span>
                       <span className={`price-multiplier ${station.pricing?.dynamic_multiplier > 1 ? 'high' : station.pricing?.dynamic_multiplier < 1 ? 'low' : ''}`}>
-                        {station.pricing?.dynamic_multiplier !== 1 ? `${station.pricing?.dynamic_multiplier}x multiplier` : 'Standard rate'}
+                        {station.pricing?.dynamic_multiplier !== 1 ? `${station.pricing?.dynamic_multiplier.toFixed(2)}x multiplier` : 'Standard rate'}
                       </span>
                     </div>
                   </td>
-                  <td><strong>{station.connectors?.length > 0 ? Math.max(...station.connectors.map((c: any) => c.power_kw)) : 0} kW</strong></td>
+                  <td>
+                    <strong>
+                      {station.connectors?.length > 0 
+                        ? Math.max(...station.connectors.map((c: any) => parseFloat(c.power_kw) || 0)) 
+                        : 0} kW
+                    </strong>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -4,6 +4,8 @@ Simulate 1,000+ EVs to stress test the IEVC-eco system
 """
 import argparse
 import numpy as np
+import matplotlib
+matplotlib.use('Agg') # Headless mode
 import matplotlib.pyplot as plt
 from typing import Dict, List
 import time

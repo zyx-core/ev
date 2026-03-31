@@ -107,7 +107,6 @@ export default function Recommendations({ onSelect }: { onSelect: (station: Char
                       <div style={{ flex: 1, height: '6px', background: 'var(--bg-hover)', borderRadius: '3px', overflow: 'hidden' }}>
                         <div style={{ 
                           height: '100%', width: `${scorePct}%`, 
-                          background: `interpolate(var(--accent-danger), var(--accent-success), ${rec.score})`, // fallback to green
                           backgroundColor: rec.score > 0.7 ? 'var(--accent-success)' : rec.score > 0.4 ? 'var(--accent-warning)' : 'var(--accent-danger)'
                         }}></div>
                       </div>

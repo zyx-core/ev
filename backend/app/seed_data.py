@@ -157,6 +157,52 @@ def seed_users():
         db.close()
 
 
+def seed_sessions():
+    """Create sample charging sessions"""
+    from .models import ChargingSession, SessionStatus
+    import random
+    from datetime import datetime, timedelta
+    
+    db = SessionLocal()
+    try:
+        users = db.query(User).all()
+        stations = db.query(ChargingStation).all()
+        
+        if not users or not stations:
+            print("[WARN] No users or stations found. Skipping sessions.")
+            return
+            
+        for i in range(12):
+            user = random.choice(users)
+            station = random.choice(stations)
+            connector = random.choice(station.connectors)
+            
+            # Create a mix of past and recent sessions
+            created_at = datetime.utcnow() - timedelta(hours=random.randint(1, 48), minutes=random.randint(0, 59))
+            
+            session = ChargingSession(
+                user_id=user.id,
+                station_id=station.id,
+                connector_id=connector.id,
+                start_time=created_at,
+                end_time=created_at + timedelta(minutes=random.randint(30, 120)),
+                energy_delivered_kwh=round(random.uniform(10, 60), 2),
+                cost=round(random.uniform(200, 1500), 2),
+                status=random.choice([SessionStatus.COMPLETED, SessionStatus.ACTIVE, SessionStatus.RESERVED]),
+                created_at=created_at
+            )
+            db.add(session)
+            
+        db.commit()
+        print(f"[OK] Seeded 12 sample charging sessions")
+        
+    except Exception as e:
+        db.rollback()
+        print(f"[ERROR] Error seeding sessions: {e}")
+    finally:
+        db.close()
+
+
 def main():
     """Run all seed functions"""
     print("[*] Initializing database...")
@@ -167,6 +213,9 @@ def main():
     
     print("[*] Seeding users...")
     seed_users()
+    
+    print("[*] Seeding sessions...")
+    seed_sessions()
     
     print("[OK] Database seeding complete!")
 

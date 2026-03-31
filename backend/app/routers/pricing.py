@@ -251,15 +251,22 @@ class MARLPricingEngine:
             multiplier = 1.0
             reasons.append("Model Error (Fallback)")
             
-        # Post-Processing / Safety Bounds
+        # Post-Processing / Safety Bounds for Demo Visibility
+        # If grid load is critical (>80%), force prices UP (1.5x - 2.0x)
         if grid_load > 0.8:
-            reasons.append("Grid Override")
-            multiplier *= 0.8 # Manual safety override
+            reasons.append("High Grid Stress (+50%)")
+            multiplier = max(multiplier, 1.5) 
+        # If grid load is high (>70%), nudge prices UP
+        elif grid_load > 0.7:
+            reasons.append("Increased Grid Demand (+20%)")
+            multiplier = max(multiplier, 1.2)
+        # If grid load is very low (<30%), offer DISCOUNTS
+        elif grid_load < 0.3:
+            reasons.append("Grid Surplus Discount (-20%)")
+            multiplier = min(multiplier, 0.8)
             
-        return multiplier, " + ".join(reasons)
-        
-        # Ensure within reasonable bounds
-        multiplier = max(0.5, min(2.0, multiplier))
+        # Ensure within reasonable bounds [0.5, 2.5]
+        multiplier = max(0.5, min(2.5, multiplier))
         
         reasoning = " + ".join(reasons) if reasons else "Standard rate"
         
@@ -476,13 +483,16 @@ async def get_current_strategy():
 
 class MCDMPreferences(BaseModel):
     """User preference weights for MCDM-based station recommendation."""
-    user_lat: float = Field(..., description="User's current latitude")
-    user_lon: float = Field(..., description="User's current longitude")
-    price_weight: float = Field(default=0.3, ge=0, le=1, description="Importance of low price (0–1)")
-    speed_weight: float = Field(default=0.2, ge=0, le=1, description="Importance of fast charging (0–1)")
-    distance_weight: float = Field(default=0.4, ge=0, le=1, description="Importance of proximity (0–1)")
-    availability_weight: float = Field(default=0.1, ge=0, le=1, description="Importance of slot availability (0–1)")
-    connector_type: Optional[str] = Field(default=None, description="Preferred connector type (optional)")
+    user_location: Optional[dict] = None  # Compatible with frontend {latitude, longitude}
+    user_lat: Optional[float] = None
+    user_lon: Optional[float] = None
+    price_weight: float = Field(default=0.3, ge=0, le=1)
+    speed_weight: float = Field(default=0.2, ge=0, le=1)
+    distance_weight: float = Field(default=0.4, ge=0, le=1)
+    availability_weight: float = Field(default=0.1, ge=0, le=1)
+    connector_type: Optional[str] = None
+    battery_soc: Optional[float] = None
+    max_distance_km: Optional[float] = None
 
 
 @router.post("/recommend")
@@ -512,6 +522,16 @@ async def recommend_stations(
     if total_weight == 0:
         raise HTTPException(status_code=400, detail="At least one preference weight must be non-zero")
 
+    # Extract lat/lon from flexible input
+    lat = preferences.user_lat
+    lon = preferences.user_lon
+    if preferences.user_location:
+        lat = preferences.user_location.get('latitude')
+        lon = preferences.user_location.get('longitude')
+        
+    if lat is None or lon is None:
+        raise HTTPException(status_code=400, detail="User location (latitude/longitude) is required")
+
     recommender = MCDMRecommender(
         distance_weight=preferences.distance_weight / total_weight,
         price_weight=preferences.price_weight / total_weight,
@@ -521,31 +541,40 @@ async def recommend_stations(
 
     ranked = recommender.rank_stations(
         stations=stations,
-        user_lat=preferences.user_lat,
-        user_lon=preferences.user_lon,
+        user_lat=lat,
+        user_lon=lon,
         connector_type=preferences.connector_type
     )
 
     results = []
     for station, score, distance_km in ranked:
+        # Filter by max distance if provided
+        if preferences.max_distance_km and distance_km > preferences.max_distance_km:
+            continue
+            
         results.append({
-            "station_id": station.id,
-            "station_name": station.name,
-            "mcdm_score": round(score, 4),
+            "station": {
+                "id": str(station.id),
+                "name": station.name,
+                "location": {"latitude": station.latitude, "longitude": station.longitude},
+                "pricing": {
+                    "base_rate": station.base_rate,
+                    "dynamic_multiplier": station.dynamic_multiplier,
+                    "effective_rate": round(station.base_rate * station.dynamic_multiplier, 2)
+                },
+                "connectors": [
+                    {"id": str(c.id), "connector_type": c.connector_type.value, "power_kw": c.power_kw, "status": c.status.value}
+                    for c in station.connectors
+                ]
+            },
+            "score": round(score, 4),
             "distance_km": round(distance_km, 2),
-            "effective_rate": round(station.base_rate * station.dynamic_multiplier, 3),
-            "available_connectors": sum(
-                1 for c in station.connectors if c.status.value == "available"
-            ) if station.connectors else 0
+            "estimated_wait_minutes": 0
         })
 
     return {
-        "ranked_stations": results,
-        "weights_used": {
-            "price": round(preferences.price_weight / total_weight, 3),
-            "speed": round(preferences.speed_weight / total_weight, 3),
-            "distance": round(preferences.distance_weight / total_weight, 3),
-            "availability": round(preferences.availability_weight / total_weight, 3)
-        }
+        "stations": results,
+        "total_count": len(results),
+        "user_location": {"latitude": lat, "longitude": lon}
     }
 

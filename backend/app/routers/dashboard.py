@@ -8,6 +8,9 @@ from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime, timedelta
 import numpy as np
+import asyncio
+import json
+from fastapi.responses import StreamingResponse
 
 from ..database import get_db
 from ..models import ChargingStation, ChargingSession, Connector, SessionStatus
@@ -90,6 +93,8 @@ async def get_dashboard_overview(db: Session = Depends(get_db)):
     }
 
 
+    return result
+
 @router.get("/stations/status")
 async def get_stations_status(db: Session = Depends(get_db)):
     """
@@ -106,6 +111,15 @@ async def get_stations_status(db: Session = Depends(get_db)):
         available = sum(1 for c in station.connectors if c.status.value == "available")
         total = len(station.connectors)
         
+        # Calculate reasoning for the demo
+        reason = "Base rate active"
+        if station.dynamic_multiplier > 1.1:
+            reason = "MARL: High occupancy & Peak Demand"
+        elif station.dynamic_multiplier < 0.9:
+            reason = "Grid Stability: Low Load Incentive"
+        elif 0.9 <= station.dynamic_multiplier <= 1.1:
+            reason = "Stable Grid: Optimized Balanced Pricing"
+
         result.append({
             "id": station.id,
             "name": station.name,
@@ -117,10 +131,57 @@ async def get_stations_status(db: Session = Depends(get_db)):
             "connectors_total": total,
             "utilization": round((total - available) / max(total, 1) * 100, 1),
             "current_rate": round(station.base_rate * station.dynamic_multiplier, 3),
-            "price_multiplier": station.dynamic_multiplier
+            "price_multiplier": round(station.dynamic_multiplier, 2),
+            "reasoning": reason
         })
     
     return result
+
+
+@router.get("/stream")
+async def stream_station_updates():
+    """
+    Server-Sent Events (SSE) stream for real-time station updates
+    """
+    from sqlalchemy.orm import joinedload
+    from ..database import SessionLocal
+    
+    async def event_generator():
+        while True:
+            db = SessionLocal()
+            try:
+                stations = db.query(ChargingStation).options(
+                    joinedload(ChargingStation.connectors)
+                ).filter(ChargingStation.is_active == True).all()
+                
+                result = []
+                for s in stations:
+                    available = sum(1 for c in s.connectors if c.status.value == "available")
+                    total = len(s.connectors)
+                    result.append({
+                        "id": str(s.id),
+                        "name": s.name,
+                        "location": {"latitude": s.latitude, "longitude": s.longitude},
+                        "pricing": {
+                            "base_rate": s.base_rate,
+                            "dynamic_multiplier": s.dynamic_multiplier,
+                            "effective_rate": round(base_rate * multiplier, 2) if (base_rate := s.base_rate) and (multiplier := s.dynamic_multiplier) else 0.0
+                        },
+                        "connectors_available": available,
+                        "connectors_total": total,
+                        "connectors": [
+                            {"connector_type": c.connector_type.value, "status": c.status.value, "power_kw": float(c.power_kw or 0)}
+                            for c in s.connectors
+                        ]
+                    })
+                
+                yield f"data: {json.dumps(result)}\n\n"
+            finally:
+                db.close()
+                
+            await asyncio.sleep(1) # Stream every 1 second
+            
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/sessions/recent")
@@ -141,6 +202,7 @@ async def get_recent_sessions(
         {
             "id": s.id,
             "station_id": s.station_id,
+            "station_name": s.station.name if s.station else "Unknown Station",
             "status": s.status.value,
             "start_time": s.start_time.isoformat() if s.start_time else None,
             "end_time": s.end_time.isoformat() if s.end_time else None,

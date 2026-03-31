@@ -45,6 +45,20 @@ export const GridStressView: React.FC = () => {
     }
   }, []);
 
+  const updateGridLoad = async (newFactor: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/iot/grid/load`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ load_factor: newFactor })
+      });
+      if (!res.ok) throw new Error('Failed to update grid load');
+      fetchGridLoad();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
   useEffect(() => {
     fetchGridLoad();
     const interval = setInterval(fetchGridLoad, 2000);
@@ -61,6 +75,30 @@ export const GridStressView: React.FC = () => {
         <div className="grid-meta">
           {lastUpdated && <span>Last updated: {lastUpdated}</span>}
           {error && <span className="error-badge">⚠ {error}</span>}
+        </div>
+      </div>
+
+      {/* Manual Control Dashboard */}
+      <div className="grid-controller-card" style={{ marginBottom: '24px', padding: '20px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ margin: 0 }}>🎛️ Manual Grid Load Controller</h3>
+          <span style={{ fontSize: '20px', fontWeight: 'bold', color: globalStatus === 'critical' ? '#ff4d4d' : globalStatus === 'warn' ? '#ffa500' : '#4caf50' }}>
+            {(globalLoad * 100).toFixed(0)}% Stress
+          </span>
+        </div>
+        <input 
+          type="range" 
+          min="0" 
+          max="1.0" 
+          step="0.05" 
+          value={globalLoad}
+          onChange={(e) => updateGridLoad(parseFloat(e.target.value))}
+          style={{ width: '100%', cursor: 'pointer', height: '8px', borderRadius: '4px', background: 'var(--bg-accent)' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', color: 'var(--text-muted)', fontSize: '12px' }}>
+          <span>Low Load (Off-peak)</span>
+          <span>Medium</span>
+          <span>High Load (Grid Peak)</span>
         </div>
       </div>
 

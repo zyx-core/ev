@@ -80,3 +80,7 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Databases
+*.db
+*.sqlite3

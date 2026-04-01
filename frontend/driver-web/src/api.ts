@@ -80,7 +80,7 @@ export const api = {
     return res.json();
   },
 
-  async createReservation(params: { station_id: string; connector_type?: string }): Promise<any> {
+  async createReservation(params: { station_id: string; connector_type?: string, scheduled_start?: string }): Promise<any> {
     const res = await fetch(`${API_BASE}/reservations/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

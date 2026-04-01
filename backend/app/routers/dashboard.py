@@ -203,6 +203,8 @@ async def get_recent_sessions(
             "id": s.id,
             "station_id": s.station_id,
             "station_name": s.station.name if s.station else "Unknown Station",
+            "user_name": s.user.name if s.user else "Guest",
+            "user_email": s.user.email if s.user else None,
             "status": s.status.value,
             "start_time": s.start_time.isoformat() if s.start_time else None,
             "end_time": s.end_time.isoformat() if s.end_time else None,

@@ -1,14 +1,23 @@
 import { useState } from 'react';
 import { api } from '../api';
 import type { ChargingStation } from '../api';
-import { Zap, Battery, ArrowRightLeft, CreditCard } from 'lucide-react';
+import { Zap, ArrowRightLeft, CreditCard } from 'lucide-react';
 
 export default function StationDetail({ station }: { station: ChargingStation }) {
   const [v2gEnabled, setV2gEnabled] = useState(false);
   const [soc, setSoc] = useState(82);
   const [loading, setLoading] = useState(false);
   const [reserved, setReserved] = useState(false);
+  const [bookingTime, setBookingTime] = useState(() => {
+    const d = new Date();
+    d.setHours(d.getHours() + 1);
+    return d.toISOString().slice(0, 16);
+  });
+  const [showReserveBox, setShowReserveBox] = useState(false);
+  const [selectedConnectorIndex, setSelectedConnectorIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedConnector = station.connectors[selectedConnectorIndex];
 
   const handleReserve = async () => {
     try {
@@ -16,9 +25,11 @@ export default function StationDetail({ station }: { station: ChargingStation })
       setError(null);
       await api.createReservation({
         station_id: station.id,
-        connector_type: station.connectors[0]?.connector_type
+        connector_type: selectedConnector?.connector_type,
+        scheduled_start: new Date(bookingTime).toISOString()
       });
       setReserved(true);
+      setShowReserveBox(false);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -70,7 +81,7 @@ export default function StationDetail({ station }: { station: ChargingStation })
 
       <div style={{ padding: '20px' }}>
         {/* Pay / Rate Card */}
-        <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', overflow: 'visible' }}>
           <div>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Current Rate</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
@@ -91,15 +102,18 @@ export default function StationDetail({ station }: { station: ChargingStation })
           ) : (
             <button 
               className="btn-primary" 
-              style={{ width: 'auto', padding: '12px 20px' }}
-              onClick={handleReserve}
+              style={{ width: 'auto', padding: '12px 24px' }}
+              onClick={() => setShowReserveBox(!showReserveBox)}
               disabled={loading}
             >
-              <CreditCard size={18} /> {loading ? 'Wait...' : 'Reserve'}
+              {showReserveBox ? 'Close' : 'Reserve'}
             </button>
           )}
+
         </div>
         {error && <div style={{ color: 'var(--accent-danger)', fontSize: '0.8rem', marginTop: '8px' }}>⚠ {error}</div>}
+
+        {/* V2G Panel */}
 
         {/* V2G Panel */}
         <div className="card animate-slide-up delay-1" style={{ 
@@ -178,6 +192,116 @@ export default function StationDetail({ station }: { station: ChargingStation })
           ))}
         </div>
       </div>
+
+      {/* New Centered Modal (Flex Centered) */}
+      {showReserveBox && !reserved && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '20px'
+        }}>
+          {/* Backdrop Overlay */}
+          <div 
+            style={{ 
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, 
+              background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)',
+              animation: 'fadeIn 0.3s ease'
+            }}
+            onClick={() => setShowReserveBox(false)}
+          />
+          
+          {/* Centered Modal Box */}
+          <div className="animate-slide-up" style={{
+            position: 'relative', zIndex: 10000, width: '100%', maxWidth: '380px',
+            background: 'var(--bg-card)', border: '1px solid var(--border-color)', 
+            borderRadius: '28px', padding: '28px', boxShadow: '0 40px 100px rgba(0,0,0,0.8)', 
+            backdropFilter: 'blur(30px)', boxSizing: 'border-box'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h4 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, letterSpacing: '-0.02em' }}>Configure Reservation</h4>
+              <button 
+                onClick={() => setShowReserveBox(false)}
+                style={{ 
+                  background: 'var(--bg-hover)', border: 'none', color: 'var(--text-primary)', 
+                  cursor: 'pointer', fontSize: '1.2rem', width: '32px', height: '32px', 
+                  borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+              {/* Connector Selection */}
+              <div>
+                <label style={{ fontSize: '0.7rem', color: 'var(--accent-primary)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', fontWeight: 700 }}>
+                  Connector & Power
+                </label>
+                <select 
+                  value={selectedConnectorIndex} 
+                  onChange={(e) => setSelectedConnectorIndex(Number(e.target.value))}
+                  style={{ 
+                    width: '100%', padding: '14px', background: 'rgba(0,0,0,0.2)', 
+                    border: '1px solid var(--border-color)', color: 'white', borderRadius: '14px',
+                    fontSize: '1rem', appearance: 'none', cursor: 'pointer'
+                  }}
+                >
+                  {station.connectors.map((c, i) => (
+                    <option key={i} value={i}>
+                      {c.connector_type} • {c.power_kw} kW • {c.status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Booking Time */}
+              <div>
+                <label style={{ fontSize: '0.7rem', color: 'var(--accent-primary)', textTransform: 'uppercase', display: 'block', marginBottom: '8px', fontWeight: 700 }}>
+                  Booking Time
+                </label>
+                <input 
+                  type="datetime-local" 
+                  value={bookingTime}
+                  onChange={(e) => setBookingTime(e.target.value)}
+                  style={{ 
+                    width: '100%', padding: '14px', background: 'rgba(0,0,0,0.2)', 
+                    border: '1px solid var(--border-color)', color: 'white', borderRadius: '14px',
+                    fontSize: '1rem'
+                  }}
+                />
+              </div>
+
+              {/* Summary Visualization */}
+              <div style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)', padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'var(--glass-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Zap size={22} color="var(--accent-primary)" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Assigned Capacity</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'white' }}>{selectedConnector?.power_kw} kW Fast Charge</div>
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                className="btn-primary" 
+                style={{ width: '100%', padding: '16px', borderRadius: '16px', marginTop: '4px', fontSize: '1rem', fontWeight: 700 }}
+                onClick={handleReserve}
+                disabled={loading || selectedConnector?.status !== 'available'}
+              >
+                {loading ? 'Securing Slot...' : 'Confirm Reservation'}
+              </button>
+              
+              {selectedConnector?.status !== 'available' && (
+                <p style={{ color: 'var(--accent-danger)', fontSize: '0.8rem', margin: 0, textAlign: 'center', fontWeight: 500 }}>
+                   Note: Selected connector is {selectedConnector?.status}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -84,15 +84,16 @@ export default function ReservationsView() {
                         <tr>
                             <th>ID</th>
                             <th>Station</th>
+                            <th>Consumer</th>
                             <th>Status</th>
-                            <th>Time</th>
+                            <th>Target Time</th>
                             <th>Energy</th>
                             <th>Cost</th>
                         </tr>
                     </thead>
                     <tbody>
                         {sessions.length === 0 ? (
-                            <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px' }}>No recent sessions found.</td></tr>
+                            <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>No recent sessions found.</td></tr>
                         ) : (
                             sessions.map(s => (
                                 <tr key={s.id}>
@@ -104,6 +105,10 @@ export default function ReservationsView() {
                                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.station_id}</div>
                                     </td>
                                     <td>
+                                        <div style={{ fontWeight: 600 }}>{s.user_name}</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{s.user_email}</div>
+                                    </td>
+                                    <td>
                                         <span className={`status-badge ${s.status === 'completed' ? 'available' :
                                             s.status === 'active' ? 'occupied' :
                                                 s.status === 'reserved' ? 'reserved' : 'faulted'
@@ -112,9 +117,11 @@ export default function ReservationsView() {
                                         </span>
                                     </td>
                                     <td style={{ minWidth: '120px' }}>
-                                        <div style={{ fontWeight: 500 }}>{new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                        <div style={{ fontWeight: 500 }}>
+                                            {new Date(s.start_time || s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
                                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                            {new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                            {new Date(s.start_time || s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                         </div>
                                     </td>
                                     <td>
